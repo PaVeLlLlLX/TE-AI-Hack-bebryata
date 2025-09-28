@@ -71,13 +71,53 @@ def load_artist_models():
     print("Клиент Kandinsky API готов.")
     return client
 
-def generate_panel_image(client: KandinskyAPI, image_prompt: str, style_keywords: str) -> Image.Image:
+
+def build_and_truncate_prompt(action_prompt, location_desc, character_descs, style_keywords, max_len=950):
+    """
+    Интеллигентно собирает и обрезает промпт, чтобы он не превышал лимит API.
+    """
+    parts_in_order = [
+        action_prompt,
+        f"Characters involved: {', '.join(character_descs)}." if character_descs else "",
+        f"Location: {location_desc}",
+        f"Style: {style_keywords}"
+    ]
+    
+    final_prompt = ""
+    for part in parts_in_order:
+        if not part.strip() or part.strip() == ".": continue
+        
+        if len(final_prompt) + len(part) + 2 > max_len:
+            print(f"--- ВНИМАНИЕ: Промпт был программно обрезан, чтобы не превысить лимит {max_len} символов. ---")
+            print(f"--- Отброшена часть: '{part[:100]}...'")
+            break
+            
+        final_prompt += f"{part}. "
+        
+    return final_prompt.strip()
+
+
+def generate_panel_image(client: KandinskyAPI, scenario: dict, scene_index: int, style_keywords: str) -> Image.Image:
+    """
+    Собирает полный, контекстно-богатый промпт и генерирует изображение.
+    """
     if not client:
         return Image.new('RGB', (1024, 1024), 'grey')
+
+    scene = scenario['scenes'][scene_index]
+    bible = scenario.get('story_bible', {})
     
-    full_prompt = f"{image_prompt}, in the style of {style_keywords}"
+    action_prompt = scene.get('image_prompt', '')
+    location_desc = bible.get('main_location', '')
     
-    print(f"Генерирую изображение Kandinsky с промптом: {full_prompt}")
+    character_descs = []
+    for char in bible.get('main_characters', []):
+        character_descs.append(f"{char.get('name', '')} ({char.get('description', '')})")
+    
+    full_prompt = build_and_truncate_prompt(action_prompt, location_desc, character_descs, style_keywords)
+    
+    print(f"Генерирую изображение Kandinsky с ФИНАЛЬНЫМ промптом: {full_prompt}")
+    
     try:
         pipeline_id = client.get_model()
         uuid = client.generate(full_prompt, pipeline_id)

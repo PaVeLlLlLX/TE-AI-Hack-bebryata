@@ -16,7 +16,7 @@ class IngestorAgent:
         return len(text.strip()) < text_threshold
 
     def _ocr_page(self, page):
-        pix = page.get_pixmap(dpi=800)
+        pix = page.get_pixmap(dpi=500)
         img_bytes = pix.tobytes("png")
         image = Image.open(io.BytesIO(img_bytes))
         
@@ -50,13 +50,3 @@ class IngestorAgent:
         doc.close()
         print("Обработка документа завершена.")
         return "\n\n--- Page Break ---\n\n".join(full_text)
-
-if __name__ == '__main__':
-    ingestor = IngestorAgent()
-    
-    try:
-        document_text = ingestor.process_pdf("/content/Правила внутреннего распорядка для пациентов.pdf")
-        print("\n--- РЕЗУЛЬТАТ ---")
-        print(document_text)
-    except FileNotFoundError:
-        print("\nОшибка: Тестовый PDF не найден. Укажите правильный путь.")

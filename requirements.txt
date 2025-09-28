@@ -14,4 +14,5 @@ accelerate
 
 sentencepiece
 gigachat
+json_repair
 requests

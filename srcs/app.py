@@ -54,7 +54,7 @@ if uploaded_file is not None:
         
         with st.spinner("Шаг 2/N: Анализирую документ и пишу сценарии по темам..."):
             scenarios = scripter_agent.generate_themed_scripts(document_text, style_choice, audience_choice, max_pages=max_pages_choice, use_consistent_characters=consistent_chars)
-        
+            #scenarios = scripter_agent.generate_themed_scripts(document_text, max_pages=max_pages_choice)
         if not scenarios:
             st.error("Не удалось сгенерировать ни одного сценария.")
         else:
@@ -68,7 +68,7 @@ if uploaded_file is not None:
                         images = []
                         for j, scene in enumerate(scenario["scenes"]):
                             style_keywords = STYLE_KEYWORDS.get(style_choice, "comic book style")
-                            generated_image = generate_panel_image(client=artist_client, scenario=scenario, scene_index=j, style_keywords=style_keywords)
+                            generated_image = generate_panel_image(client=artist_client, scene=scene, style_keywords=style_keywords)
                             images.append(generated_image)
                         final_comic_page = create_comic_page(scenario, images, style_choice)
                         page_filename = f"comic_page_{page_num}_{style_choice.replace(' ', '_')}.png"

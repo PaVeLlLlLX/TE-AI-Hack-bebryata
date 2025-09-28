@@ -1,4 +1,3 @@
-# agents/artist_agent.py
 import os
 import requests
 import time
@@ -17,6 +16,7 @@ class KandinskyAPI:
             'X-Key': f'Key {self.API_KEY}',
             'X-Secret': f'Secret {self.SECRET_KEY}',
         }
+        self.pipeline_id = self.get_model()
 
     def _handle_response(self, response: requests.Response):
         """Проверяет ответ сервера и выбрасывает исключение в случае ошибки."""
@@ -35,9 +35,9 @@ class KandinskyAPI:
                 return model['id']
         raise RuntimeError("Не удалось найти модель Kandinsky Split 3.0 в списке доступных.")
 
-    def generate(self, prompt, pipeline_id, width=1024, height=1024):
+    def generate(self, prompt, width=1024, height=1024):
         params = {"type": "GENERATE", "numImages": 1, "width": width, "height": height, "generateParams": {"query": prompt}}
-        data = {'pipeline_id': (None, pipeline_id), 'params': (None, json.dumps(params), 'application/json')}
+        data = {'pipeline_id': (None, self.pipeline_id), 'params': (None, json.dumps(params), 'application/json')}
         response = requests.post(f'{self.URL}/pipeline/run', headers=self.AUTH_HEADERS, files=data)
         data = self._handle_response(response)
         return data['uuid']
@@ -72,57 +72,34 @@ def load_artist_models():
     return client
 
 
-def build_and_truncate_prompt(action_prompt, location_desc, character_descs, style_keywords, max_len=950):
-    """
-    Интеллигентно собирает и обрезает промпт, чтобы он не превышал лимит API.
-    """
-    parts_in_order = [
-        action_prompt,
-        f"Characters involved: {', '.join(character_descs)}." if character_descs else "",
-        f"Location: {location_desc}",
-        f"Style: {style_keywords}"
-    ]
+def build_and_truncate_prompt(action_prompt, style_keywords, max_len=3000):
+    quality_enhancers = "clear vector art, infographic style, minimalist, symbolic representation, on white background"
+
     
-    final_prompt = ""
-    for part in parts_in_order:
-        if not part.strip() or part.strip() == ".": continue
-        
-        if len(final_prompt) + len(part) + 2 > max_len:
-            print(f"--- ВНИМАНИЕ: Промпт был программно обрезан, чтобы не превысить лимит {max_len} символов. ---")
-            print(f"--- Отброшена часть: '{part[:100]}...'")
-            break
-            
-        final_prompt += f"{part}. "
+    final_prompt = f"{action_prompt}, {style_keywords}, {quality_enhancers}"
+    if len(final_prompt) > max_len:
+        final_prompt = final_prompt[:max_len]
+        print(f"--- ВНИМАНИЕ: Промпт был обрезан до {max_len} символов. ---")
         
     return final_prompt.strip()
 
 
-def generate_panel_image(client: KandinskyAPI, scenario: dict, scene_index: int, style_keywords: str) -> Image.Image:
-    """
-    Собирает полный, контекстно-богатый промпт и генерирует изображение.
-    """
+def generate_panel_image(client: KandinskyAPI, scene: dict, style_keywords: str) -> Image.Image:
     if not client:
         return Image.new('RGB', (1024, 1024), 'grey')
 
-    scene = scenario['scenes'][scene_index]
-    bible = scenario.get('story_bible', {})
-    
     action_prompt = scene.get('image_prompt', '')
-    location_desc = bible.get('main_location', '')
-    
-    character_descs = []
-    for char in bible.get('main_characters', []):
-        character_descs.append(f"{char.get('name', '')} ({char.get('description', '')})")
-    
-    full_prompt = build_and_truncate_prompt(action_prompt, location_desc, character_descs, style_keywords)
+    full_prompt = build_and_truncate_prompt(action_prompt, style_keywords)
     
     print(f"Генерирую изображение Kandinsky с ФИНАЛЬНЫМ промптом: {full_prompt}")
     
     try:
-        pipeline_id = client.get_model()
-        uuid = client.generate(full_prompt, pipeline_id)
+        #pipeline_id = client.get_model()
+        uuid = client.generate(full_prompt)
         image_bytes = client.check_generation(uuid)
-        return Image.open(BytesIO(image_bytes))
+        image = Image.open(BytesIO(image_bytes))
+        image.save(f"outputs/{uuid}.png")
+        return image
     except Exception as e:
         print(f"ОШИБКА при вызове Kandinsky API: {e}")
         st.error(f"Произошла ошибка при генерации изображения: {e}")

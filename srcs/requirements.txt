@@ -1,0 +1,17 @@
+streamlit
+python-dotenv
+
+PyMuPDF
+easyocr
+torch
+torchvision
+numpy
+Pillow
+
+diffusers
+transformers
+accelerate
+
+sentencepiece
+gigachat
+requests

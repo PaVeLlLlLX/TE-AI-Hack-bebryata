@@ -8,9 +8,10 @@ load_dotenv()
 
 from agents.ingestor_agent import IngestorAgent
 from agents.scripter_agent import ScripterAgent
-from agents.artist_agent import load_artist_models, generate_panel_image
+from agents.artist_agent import load_artist_models, generate_all_panels_in_parallel
 from agents.layout_agent import create_comic_page
 
+st.sidebar.number_input("Seed генерации", min_value=-1, value=-1, help="Введите число для воспроизводимых результатов. -1 для случайного.")
 st.set_page_config(layout="wide")
 st.title("AI-конвертер документов в комиксы 📜➡️🖼️")
 
@@ -45,36 +46,40 @@ if uploaded_file is not None:
     with open(temp_pdf_path, "wb") as f: f.write(uploaded_file.getbuffer())
 
     if st.button("✨ Создать комикс!", key="generate_button"):
-        st.session_state.comic_generated = False
-        st.session_state.generated_pages = []
-        
-        with st.spinner("Шаг 1/N: Читаю и распознаю документ..."):
+        with st.status("🚀 Запускаю конвейер...", expanded=True) as status:
+            st.session_state.comic_generated = False
+            st.session_state.generated_pages = []
+            
+            status.update(label="Шаг 1: Читаю и распознаю документ...")
             document_text = ingestor_agent.process_pdf(temp_pdf_path)
-        st.success("Документ успешно прочитан!")
-        
-        with st.spinner("Шаг 2/N: Анализирую документ и пишу сценарии по темам..."):
+            st.success("Документ успешно прочитан!")
+            
+            status.update(label="Шаг 2: Создаю план комикса...")
             scenarios = scripter_agent.generate_themed_scripts(document_text, style_choice, audience_choice, max_pages=max_pages_choice, use_consistent_characters=consistent_chars)
             #scenarios = scripter_agent.generate_themed_scripts(document_text, max_pages=max_pages_choice)
-        if not scenarios:
-            st.error("Не удалось сгенерировать ни одного сценария.")
-        else:
-            st.success(f"Сценарии для {len(scenarios)} страниц комикса готовы!")
-            
-            all_pages_data = []
-            for i, scenario in enumerate(scenarios):
-                page_num = i + 1
-                with st.spinner(f"Генерация страницы {page_num}/{len(scenarios)}: \"{scenario.get('title', '')}\"..."):
+            if not scenarios:
+                st.error("Не удалось сгенерировать ни одного сценария.")
+            else:
+                st.success(f"Сценарии для {len(scenarios)} страниц комикса готовы!")
+                
+                all_pages_data = []
+                for i, scenario in enumerate(scenarios):
+                    page_num = i + 1
+                    status.update(label=f"Шаг 3.{i+1}: Пишу сценарий для страницы '{scenario['scenes'][i]['caption']}'...")
                     if scenario and scenario.get("scenes"):
                         images = []
-                        for j, scene in enumerate(scenario["scenes"]):
-                            style_keywords = STYLE_KEYWORDS.get(style_choice, "comic book style")
-                            generated_image = generate_panel_image(client=artist_client, scene=scene, style_keywords=style_keywords)
-                            images.append(generated_image)
+                        #for j, scene in enumerate(scenario["scenes"]):
+                        style_keywords = STYLE_KEYWORDS.get(style_choice, "comic book style")
+                        status.update(label=f"Шаг 4.{i+1}: Рисую 4 панели...")
+                            #generated_image = generate_panel_image(client=artist_client, scene=scene, style_keywords=style_keywords)
+                        generated_images = generate_all_panels_in_parallel(client=artist_client, scenario=scenario, style_keywords=style_keywords)
+                        images.append(generated_images)
+
                         final_comic_page = create_comic_page(scenario, images, style_choice)
                         page_filename = f"comic_page_{page_num}_{style_choice.replace(' ', '_')}.png"
                         all_pages_data.append((final_comic_page, page_filename))
-            st.session_state.generated_pages = all_pages_data
-            st.session_state.comic_generated = True
+                st.session_state.generated_pages = all_pages_data
+                st.session_state.comic_generated = True
 
 
 if st.session_state.comic_generated and st.session_state.generated_pages:

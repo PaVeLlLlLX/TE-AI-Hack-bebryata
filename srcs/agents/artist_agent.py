@@ -4,8 +4,10 @@ import time
 import json
 from PIL import Image
 from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor
 import streamlit as st
 import base64
+SEED = 123
 
 class KandinskyAPI:
     def __init__(self, api_key, secret_key):
@@ -104,3 +106,20 @@ def generate_panel_image(client: KandinskyAPI, scene: dict, style_keywords: str)
         print(f"ОШИБКА при вызове Kandinsky API: {e}")
         st.error(f"Произошла ошибка при генерации изображения: {e}")
         return Image.new('RGB', (1024, 1024), 'red')
+    
+
+def generate_all_panels_in_parallel(client: KandinskyAPI, scenario: dict, style_keywords: str) -> list[Image.Image]:
+    scenes = scenario.get("scenes", [])
+    images = [None] * len(scenes)
+
+    def generate_single_image(scene_index):
+        scene = scenes[scene_index]
+        print(f"  [Поток {scene_index}]: Начинаю генерацию панели {scene_index + 1}...")
+        image = generate_panel_image(client, scene, style_keywords)
+        images[scene_index] = image
+        print(f"  [Поток {scene_index}]: Панель {scene_index + 1} готова.")
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        executor.map(generate_single_image, range(len(scenes)))
+
+    return images

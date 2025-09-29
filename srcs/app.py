@@ -33,7 +33,13 @@ with st.sidebar:
     st.header("⚙️ Настройки комикса")
     style_choice = st.selectbox("1. Выберите стиль комикса:", ("Американский комикс 80-х", "Современная манга", "Нуарный детектив", "Детская иллюстрация"))
     audience_choice = st.selectbox("2. Выберите целевую аудиторию:", ("Для детей 10 лет", "Для подростков", "Для взрослых экспертов"))
-    max_pages_choice = st.slider("3. Количество страниц:", min_value=1, max_value=5, value=1, help="Выберите, сколько тематических страниц комикса сгенерировать.")
+    max_pages_choice = st.sidebar.slider(
+        "3. Желаемое количество страниц:", 
+        min_value=1, 
+        max_value=5, 
+        value=3, 
+        help="AI проанализирует документ и отдаст приоритет качеству и логике, а не слепому следованию числу, фокусируясь на самых важных темах. Итоговое число страниц может быть больше."
+    )
     consistent_chars = st.checkbox("Единые персонажи для всего комикса", value=True, help="Если включено, AI придумает одних и тех же героев для всех страниц.")
     seed_choice = st.number_input("Seed генерации", min_value=-1, value=-1, help="Введите число для воспроизводимых результатов. -1 для случайного.")
 
@@ -100,7 +106,7 @@ if st.session_state.get('generation_complete', False):
         
         for j, scene in enumerate(page_data['scenario']['scenes']):
             with cols[j]:
-                st.image(page_data['images'][j], use_column_width=True)
+                st.image(page_data['images'][j], use_container_width=True)
                 
                 new_caption = st.text_area(
                     f"Текст панели {j+1}",
@@ -181,7 +187,7 @@ if st.session_state.final_pages:
             page_image, page_filename = page_data
             
             with col:
-                st.image(page_image, caption=f"Страница {st.session_state.final_pages.index(page_data) + 1}", use_column_width=True)
+                st.image(page_image, caption=f"Страница {st.session_state.final_pages.index(page_data) + 1}", use_container_width=True)
                 
                 buf = BytesIO()
                 page_image.save(buf, format="PNG")

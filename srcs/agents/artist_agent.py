@@ -88,6 +88,7 @@ def build_and_truncate_prompt(action_prompt, style_keywords, max_len=3000):
 
 def generate_panel_image(client: KandinskyAPI, scene: dict, style_keywords: str, seed: int) -> Image.Image:
     if not client:
+        print("Клиент Artist Agent не найден")
         return Image.new('RGB', (1024, 1024), 'grey')
 
     action_prompt = scene.get('image_prompt', '')
@@ -111,11 +112,12 @@ def generate_panel_image(client: KandinskyAPI, scene: dict, style_keywords: str,
 def generate_all_panels_in_parallel(client: KandinskyAPI, scenario: dict, style_keywords: str, seed: int) -> list[Image.Image]:
     scenes = scenario.get("scenes", [])
     images = [None] * len(scenes)
-
+    
     def generate_single_image(scene_index):
         scene = scenes[scene_index]
         print(f"  [Поток {scene_index}]: Начинаю генерацию панели {scene_index + 1}...")
-        image = generate_panel_image(client, scene, style_keywords)
+        image = generate_panel_image(client, scene, style_keywords, seed)
+        print(image)
         images[scene_index] = image
         print(f"  [Поток {scene_index}]: Панель {scene_index + 1} готова.")
 

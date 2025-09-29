@@ -37,11 +37,14 @@ class ScripterAgent:
         except FileNotFoundError:
             print(f"ОШИБКА: Файл с промптом не найден: {filepath}"); return None
         
-
+    
     def _clean_and_filter_text(self, text: str) -> str:
         print("Очистка и фильтрация всего документа (сохраняем RU/EN)...")
         text_no_breaks = text.replace("--- Page Break ---", "\n"); cleaned_lines = []
         for line in text_no_breaks.split('\n'):
+            if len(line.strip()) < 5:
+                    continue
+            
             if not (is_predominantly_cyrillic(line)):
                 if line.strip(): print(f"    Фильтрую строку на другом языке: {line[:70]}...")
                 continue
@@ -51,15 +54,42 @@ class ScripterAgent:
         print("\n".join(cleaned_lines))
         return "\n".join(cleaned_lines)
     
-    def _call_giga_chat(self, prompt: str, temperature: float = 0.5) -> str:
-        """Универсальная функция для вызова GigaChat."""
+
+    def _call_llm(self, prompt: str, temperature: float = 0.5, max_tokens=4000, max_retries: int = 3) -> str:
         credentials = os.getenv("GIGACHAT_CREDENTIALS")
-        if not credentials: raise ValueError("GIGACHAT_CREDENTIALS не найдены.")
-        with GigaChat(credentials=credentials, verify_ssl_certs=False) as giga:
-            chat = Chat(messages=[Messages(role=MessagesRole.USER, content=prompt)], temperature=temperature, max_tokens=6000)
-            response = giga.chat(chat)
-            return response.choices[0].message.content
+        if not credentials:
+            raise ValueError("GIGACHAT_CREDENTIALS не найдены.")
         
+        for attempt in range(max_retries):
+            print(f"  [LLM Call]: Попытка {attempt + 1}/{max_retries}...")
+            try:
+                with GigaChat(credentials=credentials, verify_ssl_certs=False, timeout=120) as giga:
+                    chat = Chat(
+                        messages=[Messages(role=MessagesRole.USER, content=prompt)],
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    response = giga.chat(chat)
+                    response_content = response.choices[0].message.content
+                    
+                    if not response_content or response_content.strip() in ["[]", "{}"]:
+                        print(f"  [ПРЕДУПРЕЖДЕНИЕ]: GigaChat вернул пустой ответ на попытке {attempt + 1}.")
+                        raise ValueError("Получен пустой ответ от API")
+
+                    print("  [LLM Call]: Ответ от GigaChat успешно получен.")
+                    return response_content
+
+            except Exception as e:
+                print(f"  [ОШИБКА] на попытке {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 5
+                    print(f"  [LLM Call]: Жду {wait_time} секунд перед следующей попыткой...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"  [ОШИБКА]: Достигнут лимит попыток. Не удалось получить ответ от GigaChat.")
+                    return ""
+        return ""
+    
         
     def _extract_json_from_response(self, response_str: str) -> dict | list:
         json_str = ""
@@ -121,12 +151,9 @@ class ScripterAgent:
         filled_prompt = self.planner_prompt_template.format(document_text=cleaned_document, num_pages=num_pages)
 
         try:
-            response_str = self._call_giga_chat(filled_prompt)
+            response_str = self._call_llm(filled_prompt)
             print(f"--- ПОЛУЧЕН ПЛАН ОТ GIGACHAT ---\n{response_str}...\n--- КОНЕЦ ПЛАНА ---")
-            start = response_str.find('[')
-            end = response_str.rfind(']') + 1
-            if start == -1 or end == 0: raise ValueError("JSON-массив не найден")
-            plan = json.loads(response_str[start:end])
+            plan = self._extract_json_from_response(response_str)
             print(f"  План успешно создан, {len(plan)} страниц запланировано.")
             return plan
         except (json.JSONDecodeError, ValueError) as e:
@@ -142,7 +169,7 @@ class ScripterAgent:
         
         filled_prompt = self.global_char_prompt_template.format(document_text=document_text)
         try:
-            response_str = self._call_giga_chat(filled_prompt)
+            response_str = self._call_llm(filled_prompt)
             print(f"--- ПОЛУЧЕН СПИСОК ПЕРСОНАЖЕЙ ---\n{response_str}\n--- КОНЕЦ СПИСКА ---")
             bible = self._extract_json_from_response(response_str)
             characters = bible.get("main_characters")
@@ -175,7 +202,7 @@ class ScripterAgent:
         
         for attempt in range(2): # 2 попытки
             try:
-                response_str = self._call_giga_chat(filled_prompt)
+                response_str = self._call_llm(filled_prompt)
                 print(f"--- ПОЛУЧЕН СЦЕНАРИЙ ОТ GIGACHAT (Попытка {attempt+1}) ---\n{response_str}\n--- КОНЕЦ СЦЕНАРИЯ ---")
                 parsed_json = self._extract_json_from_response(response_str)
                 if parsed_json and parsed_json.get("scenes"):

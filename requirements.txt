@@ -13,4 +13,4 @@ accelerate==1.10.1
 sentencepiece==0.2.1
 gigachat==0.1.42.post2
 json_repair==0.51.0
-requests==2.32.5git 
+requests==2.32.5

@@ -86,7 +86,7 @@ def build_and_truncate_prompt(action_prompt, style_keywords, max_len=3000):
     return final_prompt.strip()
 
 
-def generate_panel_image(client: KandinskyAPI, scene: dict, style_keywords: str) -> Image.Image:
+def generate_panel_image(client: KandinskyAPI, scene: dict, style_keywords: str, seed: int) -> Image.Image:
     if not client:
         return Image.new('RGB', (1024, 1024), 'grey')
 
@@ -108,7 +108,7 @@ def generate_panel_image(client: KandinskyAPI, scene: dict, style_keywords: str)
         return Image.new('RGB', (1024, 1024), 'red')
     
 
-def generate_all_panels_in_parallel(client: KandinskyAPI, scenario: dict, style_keywords: str) -> list[Image.Image]:
+def generate_all_panels_in_parallel(client: KandinskyAPI, scenario: dict, style_keywords: str, seed: int) -> list[Image.Image]:
     scenes = scenario.get("scenes", [])
     images = [None] * len(scenes)
 
@@ -121,5 +121,10 @@ def generate_all_panels_in_parallel(client: KandinskyAPI, scenario: dict, style_
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         executor.map(generate_single_image, range(len(scenes)))
+
+    for i in range(len(images)):
+        if images[i] is None:
+            print(f"  [ПРЕДУПРЕЖДЕНИЕ]: Поток {i} завершился без результата. Вставляю заглушку.")
+            images[i] = Image.new('RGB', (1024, 1024), 'black')
 
     return images

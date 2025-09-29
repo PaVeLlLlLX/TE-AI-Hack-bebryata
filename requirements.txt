@@ -1,18 +1,16 @@
-streamlit
-python-dotenv
+streamlit==1.50.0
+python-dotenv==1.1.1
 
-PyMuPDF
-easyocr
-torch
-torchvision
-numpy
-Pillow
+PyMuPDF==1.26.4
+easyocr==1.7.2
+numpy==2.2.6
+Pillow==11.3.0
 
-diffusers
-transformers
-accelerate
+diffusers==0.35.1
+transformers==4.56.2
+accelerate==1.10.1
 
-sentencepiece
-gigachat
-json_repair
-requests
+sentencepiece==0.2.1
+gigachat==0.1.42.post2
+json_repair==0.51.0
+requests==2.32.5git 

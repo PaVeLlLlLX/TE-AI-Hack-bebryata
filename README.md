@@ -107,3 +107,4 @@ streamlit run srcs/app.py
 ├── .env                         # Файл с API ключами (локально)
 └── README.md                    # Этот файл
 ```
+---
